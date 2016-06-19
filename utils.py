@@ -1,5 +1,4 @@
 import sys, os
-sys.path.append(os.path.abspath('.'))
 import random
 from contextlib import suppress
 import datetime
@@ -8,9 +7,6 @@ from functools import wraps
 import wikipedia
 import requests
 from bs4 import BeautifulSoup
-from pyvirtualdisplay import Display
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
 from Levenshtein import ratio
 
 from constants import MONTHS, USER_AGENTS

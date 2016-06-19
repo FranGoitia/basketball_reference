@@ -1,0 +1,4 @@
+python-levenshtein
+bs4
+requests
+wikipedia
