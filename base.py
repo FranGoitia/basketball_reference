@@ -1,10 +1,4 @@
-import sys
-if sys.version_info.major == 2:
-    raise('Must be run in Python 3') 
-
 import os
-sys.path.append(os.path.abspath('.'))
-
 from collections import defaultdict
 from datetime import datetime
 import random
@@ -17,8 +11,8 @@ from bs4 import BeautifulSoup
 from Levenshtein import ratio
 
 from constants import PLS_HEADERS, USER_AGENTS, POSITIONS
-from utils import WikipediaPlayer, timeout_handler, gen_date, feets_to_meters, timeout, \
-                        convert_to_min, gen_derived_var, gen_date_with_mins, get_seasons
+from utils import (WikipediaPlayer, timeout_handler, gen_date, feets_to_meters, timeout,
+                   gen_derived_var, gen_date_with_mins)
 
 with open('logging.json', 'r') as f:
     logging.config.dictConfig(json.load(f))
@@ -32,7 +26,7 @@ CACHE_PLAYERS_RATIO = {}
 
 class PlayerBasicInfo():
     """
-    In charge of making sure every player has its correspondent uniqueness 
+    In charge of making sure every player has its correspondent uniqueness
     info. Retrieves it from b_ref or wikipedia when necessary
     """
     def __init__(self, name, team_info):
@@ -59,11 +53,11 @@ class PlayerBasicInfo():
 
     def _get_most_suitable_player(self):
         """
-        Looks in the roster for a player with an almost identical name. If any, it 
+        Looks in the roster for a player with an almost identical name. If any, it
         returns it
         """
-        score, pl_name = max((ratio(pl_name, self.name), pl_name) 
-                                                for pl_name in self.team_info.players_.keys())
+        score, pl_name = max((ratio(pl_name, self.name), pl_name)
+                             for pl_name in self.team_info.players_.keys())
         _pl_name = self.name.split(' ')[0]
         _suit_player_name = pl_name.split(' ')[0]
         if _pl_name[:3] in _suit_player_name[:3] and score >= 0.65:
@@ -78,27 +72,41 @@ class PlayerBasicInfo():
         if player:
             return player
 
-        player_wiki = WikipediaPlayer(self.name, self.team_info.name)
-        h = player_wiki.listed_height
-        height = float(h[h.index('(')+1:h.index('m')])
-        w = player_wiki.listed_weight
-        weight = float(w[w.index('(')+1:w.index('kg')])
-        start, end = player_wiki.playing_career.replace('\n', '').split('–')
+        self.player_wiki_ = WikipediaPlayer(self.name, self.team_info.name)
+        height = self._get_height()
+        weight = self._get_weight()
+        start, end = self.player_wiki_.playing_career.replace('\n', '').split('–')
         if end == 'present':
             exp = datetime.now().year - int(start)
         else:
             exp = int(end) - int(start)
 
-        player = {  
-                   'position': POSITIONS[player_wiki.position.split(' / ')[0]],
-                   'birth_date': player_wiki.born[1:11],
-                   'height': height if height else None,
-                   'weight': weight if weight else None,
-                   'experience': exp if exp else None,
-                 }
+        player = {
+            'position': POSITIONS[self.player_wiki_.position.split(' / ')[0]],
+            'birth_date': self.player_wiki_.born[1:11],
+            'height': height if height else None,
+            'weight': weight if weight else None,
+            'experience': exp if exp else None,
+        }
 
         CACHE_PLAYERS_BASIC_INFO[self.name] = player
         return player
+
+    def _get_height(self):
+        h = self.player_wiki_.listed_height
+        if h.index('m') < h.index('ft'):
+            height = float(h[0:h.index('m')])
+        else:
+            height = float(h[h.index('(')+1:h.index('m')])
+        return height
+
+    def _get_weight(self):
+        w = self.player_wiki_.listed_weight
+        if w.index('kg') < w.index('lb'):
+            weight = float(w[0:w.index('kg')])
+        else:
+            weight = float(w[w.index('(')+1:w.index('kg')])
+        return weight
 
 
 class BRefTeam():
@@ -114,8 +122,8 @@ class BRefTeam():
 
     def gen_players_info(self):
         team = self.soup.find('div', {'id': 'div_roster'})
-        headers = [th.text for th in team.find_all('th')]
-        headers = [PLS_HEADERS[h.strip()] for h in headers]
+        headers = [PLS_HEADERS[th.text.strip()] for th
+                   in team.thead.find_all('th')[1:]]
         rows = [row for row in team.tbody.find_all('tr')]
 
         self.players_ = {}
@@ -123,7 +131,7 @@ class BRefTeam():
             player = [i.text for i in player.find_all('td')]
             player = dict(zip(headers, player))
             player['height'] = feets_to_meters(float(player['height'].replace('-', '.')))
-    
+
             if player.get('birth_date'):
                 player['birth_date'] = str(gen_date(player.get('birth_date')))
             if player.get('experience'):
@@ -133,7 +141,7 @@ class BRefTeam():
                 # there is a bug in b-reference and in players like Quron Davis C is actually SO
                 exp_mapping = {'FR': 0, 'SO': 1, 'JR': 2, 'SR': 3, 'GR': 4, 'C': 1}
                 if player_class not in ['FR', 'SO', 'JR', 'SR', 'GR']:
-                    logger.info('PLAYER {0} HAS STRANGE CLASS'.format(player_name))
+                    logger.info('PLAYER {0} HAS STRANGE CLASS'.format(player))
                 player['experience'] = exp_mapping[player_class]
 
             self.players_[player['name']] = player
@@ -152,13 +160,13 @@ class BRefMatch:
         self.season = season
         self.code = code
         self.type = match_type
-        
+
     def is_crawled(self):
         """
         returns wether match is already crawled
         """
         return '{0}.json'.format(self.code) in os.listdir('./matches/{0}/{1}/{2}'.format(
-                    self.country, self.league, self.season))
+                                                          self.country, self.league, self.season))
 
     @timeout
     def crawl(self):
@@ -176,18 +184,18 @@ class BRefMatch:
         self._gen_teams_basic_info()
         self._gen_scoring()
         self._gen_extra_info()
-        
+
         self._write_match()
 
     def _gen_teams_stats(self):
         """
-        generate and add statistics related to teams and players to match dict 
+        generate and add statistics related to teams and players to match dict
         """
         for team in ['home', 'away']:
             self.match_[team]['players'] = defaultdict(dict)
             self.match_[team]['totals'] = defaultdict(dict)
 
-        stats_tables = self.soup_.find_all('table', {'class': 'sortable  stats_table'})
+        stats_tables = self.soup_.find_all('table', {'class': 'stats_table'})
         bas_stats_tables = stats_tables[0], stats_tables[2]
         adv_stats_tables = stats_tables[1], stats_tables[3]
         self._read_table(bas_stats_tables, last_col=False)
@@ -195,11 +203,6 @@ class BRefMatch:
 
         self._gen_derived_stats()
 
-        four_factors = self.soup_.find('table', {'id': 'four_factors'})
-        self.match_['home']['totals']['pace'] = float(four_factors.tbody.
-                            find_all('tr')[1].find_all('td')[1].text)
-        self.match_['away']['totals']['pace'] = float(four_factors.tbody.find_all(
-                                        'tr')[0].find_all('td')[1].text)
         self.match_['home']['totals']['+/-'] = self.match_['home']['totals']['PTS'] - self.match_['away']['totals']['PTS']
         self.match_['away']['totals']['+/-'] = self.match_['away']['totals']['PTS'] - self.match_['home']['totals']['PTS']
 
@@ -213,8 +216,8 @@ class BRefMatch:
         self.match_['season'] = self.season
         self.match_['country'] = " ".join(map(lambda x: x.capitalize(), self.country.split('_')))
 
-        loc_time = self.soup_.find('td', {'class': 'align_center padding_bottom small_text'}).contents
-        if len(loc_time) > 0:
+        loc_time = [el.text for el in self.soup_.find('div', {'class': 'scorebox_meta'}).find_all('div')]
+        if len(loc_time) >= 1:
             date = loc_time[0]
             if 'AM' in date or 'PM' in date:
                 date, time = gen_date_with_mins(date)
@@ -222,28 +225,29 @@ class BRefMatch:
                 self.match_['time'] = str(time)
             else:
                 self.match_['date'] = str(gen_date(date))
-        if len(loc_time) == 3:
-            self.match_['stadium'] = " ".join(map(lambda x: x.capitalize(), 
-                                loc_time[2].split(',')[0].split(' ')))   
-    
+        if len(loc_time) == 2:
+            self.match_['stadium'] = " ".join(map(lambda x: x.capitalize(),
+                                              loc_time[1].split(',')[0].split(' ')))
+
     def _gen_teams_basic_info(self):
         """
         generates teams (and their players) basic information
         """
-        teams = self.soup_.find_all('span', {'class': 'bold_text large_text'})
-        away, home = [team.a.text for team in teams]
-        away_page, home_page = [team.a['href'] for team in teams]
+        teams = [team.find_all('a')[-1] for team in self.soup_.find('div', {'scorebox'}
+                 ).find_all('div', {'itemprop': 'performer'})]
+        away, home = [team.text for team in teams]
+        away_page, home_page = [team['href'] for team in teams]
         for team, team_name, team_page in zip(['away', 'home'], [away, home], [away_page, home_page]):
             self.match_[team]['name'] = team_name
             self._team_pls_basic_info(team, team_name, team_page)
-            
+
     def _team_pls_basic_info(self, team_cond, team_name, team_page):
         """
         generate and add basic information related to players to match dict
         """
         team_info = BRefTeam(team_name, team_page)
         team_info.gen_players_info()
-        
+
         pls = self.match_[team_cond]['players']
         for pl, info in pls.items():
             pl_basic_info = PlayerBasicInfo(pl, team_info)
@@ -257,7 +261,7 @@ class BRefMatch:
 
     def _gen_extra_info(self):
         """
-        generate and add attendance, duration and officials info to match dict 
+        generate and add attendance, duration and officials info to match dict
         """
         raise NotImplementedError
 
@@ -277,7 +281,7 @@ class BRefMatch:
                 d['3P%'] = gen_derived_var(d['3P'], d['3PA'])
                 d['eFG%'] = gen_derived_var((d['FG'] + 0.5 * d['3P']), d['FGA'])
                 d['TSA'] = d['FGA'] + 0.44 * d['FTA']
-                d['TS%'] =  gen_derived_var(d['PTS'], 2*d['TSA'])
+                d['TS%'] = gen_derived_var(d['PTS'], 2*d['TSA'])
                 d['3PAr'] = gen_derived_var(d['3PA'], d['FGA'])
                 d['FTAr'] = gen_derived_var(d['FTA'], d['FGA'])
                 d['2P'] = d['FG'] - d['3P']
@@ -289,8 +293,8 @@ class BRefMatch:
                 d['DRBr'] = gen_derived_var(d['DRB'], d['TRB'])
                 d['AST/TOV'] = gen_derived_var(d['AST'], d['TOV'])
                 d['STL/TOV'] = gen_derived_var(d['STL'], d['TOV'])
-                d['FIC'] = (d['PTS'] + d['ORB'] + 0.75 * d['DRB'] + d['AST'] + d['STL']
-                            + d['BLK'] - 0.75 * d['FGA'] - 0.375 * d['FTA'] - d['TOV'] - 0.5 * d['PF'])
+                d['FIC'] = (d['PTS'] + d['ORB'] + 0.75 * d['DRB'] + d['AST'] + d['STL'] +
+                            d['BLK'] - 0.75 * d['FGA'] - 0.375 * d['FTA'] - d['TOV'] - 0.5 * d['PF'])
                 d['FT/FGA'] = gen_derived_var(d['FT'], d['FGA'])
 
                 d['HOB'] = gen_derived_var(d['FG'] + d['AST'], team_stats['FG'])
@@ -298,9 +302,9 @@ class BRefMatch:
             # derive players and teams stats
             for player_stats in self.match_[team]['players'].values():
                 if player_stats['MP']:
-                    add_derivated_stats_to_dict(player_stats, 'player')            
+                    add_derivated_stats_to_dict(player_stats, 'player')
             add_derivated_stats_to_dict(team_stats, 'team')
-        
+
     def _write_match(self):
         filename = './matches/{0}/{1}/{2}/{3}.json'.format(self.country, self.league, self.season, self.code)
         with open(filename, 'w') as f:
@@ -338,5 +342,3 @@ class BRefSeason:
         generates b-reference codes for given league, season and date to crawl
         """
         raise NotImplementedError
-            
-            

@@ -1,6 +1,3 @@
-import sys, os
-import random
-from contextlib import suppress
 import datetime
 import signal
 from functools import wraps
@@ -9,16 +6,15 @@ import requests
 from bs4 import BeautifulSoup
 from Levenshtein import ratio
 
-from constants import MONTHS, USER_AGENTS
+from constants import MONTHS
 
 
 class NoTeamException(Exception):
     pass
 
 
-class TimeoutException(Exception):   
+class TimeoutException(Exception):
     pass
-
 
 
 class Wikipedia:
@@ -29,7 +25,7 @@ class Wikipedia:
     def __init__(self, page):
         """
         initializes self.page to the correct wikipedia resource
-        """            
+        """
         try:
             self.page = wikipedia.page(page)
         except wikipedia.exceptions.DisambiguationError as e:
@@ -48,6 +44,7 @@ class Wikipedia:
                 self.main_table[key] = val
             except:
                 continue
+
     @property
     def summary(self):
         return self.page.summary
@@ -55,7 +52,7 @@ class Wikipedia:
     def __getattr__(self, name):
         """
         ruby-like method missing that gets information from main table
-        """            
+        """
         return self.main_table.get(name)
 
 
@@ -77,17 +74,17 @@ class WikipediaPlayer(Wikipedia):
 
     def _get_correct_page(self, options, team):
         """
-        gets appropiate wikipedia among options considering wether team is 
+        gets appropiate wikipedia among options considering wether team is
         in html and age
         """
         best_candidate = None
         best_yob = None
         for option in options:
-            if not 'disambiguation' in option:
+            if 'disambiguation' not in option:
                 try:
                     wiki_player = wikipedia.page(option)
                 except:
-                    continue ### return
+                    continue
                 self.soup = BeautifulSoup(wiki_player.html())
                 if team not in str(self.soup):
                     continue
@@ -120,15 +117,15 @@ def get_seasons(seasons):
     """
     if '-to-' in seasons[0]:
         from_, to = map(int, seasons[0].split('-to-'))
-        years = list(range(from_, to+ 1))
+        years = list(range(from_, to+1))
         seasons = []
         for i in range(0, len(years)-1):
-            season = "-".join(map(str,[years[i], years[i+1]]))
+            season = "-".join(map(str, [years[i], years[i+1]]))
             seasons.append(season)
     return seasons
 
 
-def timeout_handler(signum, frame):  
+def timeout_handler(signum, frame):
     raise TimeoutException
 
 
@@ -181,7 +178,7 @@ def gen_date(date):
 
 def gen_date_with_mins(date):
     """
-    generates python datetime object from string in format 
+    generates python datetime object from string in format
     """
     datetime_info = date.split(', ')
     time = convert_12_to_24(datetime_info[0])
@@ -194,7 +191,7 @@ def gen_date_with_mins(date):
 
 
 def feets_to_meters(height):
-    return height / 3.2808 
+    return height / 3.2808
 
 
 def get_bucket(prob):
@@ -222,7 +219,7 @@ def get_dates(season, info):
     soup = BeautifulSoup(rv.text)
     seasons = soup.find_all('table', {'class': 'sortable  stats_table'})
     if len(seasons) == 2:
-        reg_season, post_season = seasons 
+        reg_season, post_season = seasons
     else:
         reg_season, post_season = seasons[0], None
     dates = set()
@@ -232,7 +229,7 @@ def get_dates(season, info):
             for row in rows:
                 match = row.find('a', href=True, text='Box Score')
                 if match:
-                    match_code =  match['href'].split('/')[2].split('.')[0]
+                    match_code = match['href'].split('/')[2].split('.')[0]
                     date = match_code[:-4]
                     if info == 'money_lines':
                         date = "-".join([date[:4], date[4:6], date[6:]])
@@ -252,28 +249,25 @@ def convert_odds(odds):
 
 
 def gen_possessions(team, opp):
-    possessions = ( 0.5 * 
-            ((team['FGA'] + 0.4 * team['FTA'] - 1.07 * (team['ORB'] / 
-            (team['ORB'] + opp['DRB'])) * (team['FGA'] - team['FG']) + team['TOV']) 
-                                                + 
-            (opp['FGA'] + 0.4 * opp['FTA'] - 1.07 * (opp['ORB'] / 
-            (opp['ORB'] + team['DRB'])) * (opp['FGA'] - opp['FG']) + opp['TOV'])) 
-            )
-    return possessions   
+    possessions = (0.5 * ((team['FGA'] + 0.4 * team['FTA'] - 1.07 * (team['ORB'] /
+                   (team['ORB'] + opp['DRB'])) * (team['FGA'] - team['FG']) + team['TOV']) +
+        (opp['FGA'] + 0.4 * opp['FTA'] - 1.07 * (opp['ORB'] /
+         (opp['ORB'] + team['DRB'])) * (opp['FGA'] - opp['FG']) + opp['TOV'])))
+    return possessions
 
 
 def add_team_derived_stats(stats, opp_stats):
     """
-    stats and opp_stats are dictionaries containing all raw stats needed 
+    stats and opp_stats are dictionaries containing all raw stats needed
     for generating and adding advanced derived stats to stats
     """
     stats['FGP'] = gen_derived_var(stats['FG'], stats['FGA'])
     stats['FTP'] = gen_derived_var(stats['FT'], stats['FTA'])
     stats['THRP'] = gen_derived_var(stats['THR'], stats['THRA'])
-    stats['EFGP'] = gen_derived_var(stats['FG'] + 0.5 * 
-                                stats['THR'], stats['FGA'])
+    stats['EFGP'] = gen_derived_var(stats['FG'] + 0.5 *
+                                    stats['THR'], stats['FGA'])
     stats['TSA'] = stats['FGA'] + 0.44 * stats['FTA']
-    stats['TSP'] =  gen_derived_var(stats['PTS'], 2 * stats['TSA'])
+    stats['TSP'] = gen_derived_var(stats['PTS'], 2 * stats['TSA'])
     stats['THRAr'] = gen_derived_var(stats['THRA'], stats['FGA'])
     stats['FTAr'] = gen_derived_var(stats['FTA'], stats['FGA'])
     stats['TWOAr'] = gen_derived_var(stats['TWOA'], stats['FGA'])
@@ -282,10 +276,10 @@ def add_team_derived_stats(stats, opp_stats):
     stats['DRBr'] = gen_derived_var(stats['DRB'], stats['TRB'])
     stats['AST_to_TOV'] = gen_derived_var(stats['AST'], stats['TOV'])
     stats['STL_to_TOV'] = gen_derived_var(stats['STL'], stats['TOV'])
-    stats['FIC'] = (stats['PTS'] + stats['ORB'] + 0.75 * stats['DRB'] 
-                                    + stats['AST'] + stats['STL']+ stats['BLK'] - 0.75 * 
-                                    stats['FGA'] - 0.375 * stats['FTA'] - 
-                                    stats['TOV'] - 0.5 * stats['PF'])
+    stats['FIC'] = (stats['PTS'] + stats['ORB'] + 0.75 * stats['DRB'] +
+                    stats['AST'] + stats['STL'] + stats['BLK'] - 0.75 *
+                    stats['FGA'] - 0.375 * stats['FTA'] -
+                    stats['TOV'] - 0.5 * stats['PF'])
     stats['FT_to_FGA'] = gen_derived_var(stats['FT'], stats['FGA'])
 
     stats['OPOS'] = gen_possessions(stats, opp_stats)
@@ -296,24 +290,24 @@ def add_team_derived_stats(stats, opp_stats):
     stats['DRBP'] = stats['DRB'] / (stats['DRB'] + opp_stats['ORB'])
     stats['TRBP'] = stats['TRB'] / (stats['TRB'] + opp_stats['TRB'])
     stats['ASTP'] = stats['AST'] / stats['FG']
-    stats['STLP'] = stats['STL']  / stats['DPOS']
-    stats['BLKP'] = stats['BLK']  / opp_stats['TWOA'] 
+    stats['STLP'] = stats['STL'] / stats['DPOS']
+    stats['BLKP'] = stats['BLK'] / opp_stats['TWOA']
     stats['TOVP'] = stats['TOV'] / stats['OPOS']
-    #stats['+/-'] = stats['+/-'] / stats['N']
+    # stats['+/-'] = stats['+/-'] / stats['N']
 
 
 def add_player_derived_stats(pl_stats, team_stats, opp_stats):
     """
-    pl_stats, team_stats, opp_team_stats are dictionaries containing all raw stats needed 
+    pl_stats, team_stats, opp_team_stats are dictionaries containing all raw stats needed
     for generating and adding advanced derived player's stats
     """
     pl_stats['FGP'] = gen_derived_var(pl_stats['FG'], pl_stats['FGA'])
     pl_stats['FTP'] = gen_derived_var(pl_stats['FT'], pl_stats['FTA'])
     pl_stats['THRP'] = gen_derived_var(pl_stats['THR'], pl_stats['THRA'])
-    pl_stats['EFGP'] = gen_derived_var(pl_stats['FG'] + 0.5 * 
-                                pl_stats['THR'], pl_stats['FGA'])
+    pl_stats['EFGP'] = gen_derived_var(pl_stats['FG'] + 0.5 *
+                                       pl_stats['THR'], pl_stats['FGA'])
     pl_stats['TSA'] = pl_stats['FGA'] + 0.44 * pl_stats['FTA']
-    pl_stats['TSP'] =  gen_derived_var(pl_stats['PTS'], 2 * pl_stats['TSA'])
+    pl_stats['TSP'] = gen_derived_var(pl_stats['PTS'], 2 * pl_stats['TSA'])
     pl_stats['THRAr'] = gen_derived_var(pl_stats['THRA'], pl_stats['FGA'])
     pl_stats['FTAr'] = gen_derived_var(pl_stats['FTA'], pl_stats['FGA'])
     pl_stats['TWOAr'] = gen_derived_var(pl_stats['TWOA'], pl_stats['FGA'])
@@ -322,10 +316,10 @@ def add_player_derived_stats(pl_stats, team_stats, opp_stats):
     pl_stats['DRBr'] = gen_derived_var(pl_stats['DRB'], pl_stats['TRB'])
     pl_stats['AST_to_TOV'] = gen_derived_var(pl_stats['AST'], pl_stats['TOV'])
     pl_stats['STL_to_TOV'] = gen_derived_var(pl_stats['STL'], pl_stats['TOV'])
-    pl_stats['FIC'] = (pl_stats['PTS'] + pl_stats['ORB'] + 0.75 * pl_stats['DRB'] 
-                                    + pl_stats['AST'] + pl_stats['STL']+ pl_stats['BLK'] - 0.75 * 
-                                    pl_stats['FGA'] - 0.375 * pl_stats['FTA'] - 
-                                    pl_stats['TOV'] - 0.5 * pl_stats['PF'])
+    pl_stats['FIC'] = (pl_stats['PTS'] + pl_stats['ORB'] + 0.75 * pl_stats['DRB'] +
+                       pl_stats['AST'] + pl_stats['STL'] + pl_stats['BLK'] - 0.75 *
+                       pl_stats['FGA'] - 0.375 * pl_stats['FTA'] -
+                       pl_stats['TOV'] - 0.5 * pl_stats['PF'])
     pl_stats['FT_to_FGA'] = gen_derived_var(pl_stats['FT'], pl_stats['FGA'])
 
     team_stats['OPOS'] = gen_possessions(pl_stats, opp_stats)
@@ -344,4 +338,4 @@ def add_player_derived_stats(pl_stats, team_stats, opp_stats):
     except ZeroDivisionError:
         pl_stats['TOVP'] = None
     pl_stats['HOB'] = gen_derived_var(pl_stats['FG'] + pl_stats['AST'], team_stats['FG'])
-    #pl_stats['+/-'] = pl_stats['+/-'] / pl_stats['N']
+    # pl_stats['+/-'] = pl_stats['+/-'] / pl_stats['N']

@@ -1,4 +1,4 @@
-#!/media/Data.I/Projects/basketball-reference/venv/bin/python2
+#!/Users/franciscog/src2/basketball-reference/venv/bin/python3.5
 
 # -*- coding: utf-8 -*-
 import re
