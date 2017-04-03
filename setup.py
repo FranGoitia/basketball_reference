@@ -10,5 +10,4 @@ setup(
     url='https://github.com/FranGoitia/basketball_reference',
     license='LICENSE.txt',
     install_requires=['python-levenshtein', 'bs4', 'requests', 'wikipedia'],
-    scripts=['match_generator']
 )
